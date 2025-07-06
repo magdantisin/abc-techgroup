@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8" />
+<title>Pregled računa</title>
+</head>
+<body>
+	<h2>Pregled računa</h2>
+	<input type="date" id="filterDate" />
+	<button onclick="loadData()">Filtriraj</button>
+
+	<table border="1" id="racunTable">
+		<thead>
+			<tr>
+				<th>ID</th>
+				<th>IBAN</th>
+				<th>Tip računa</th>
+				<th>Valuta</th>
+				<th>Klijent</th>
+				<th>Otvaranje</th>
+				<th>Zatvaranje</th>
+				<th>Akcije</th>
+			</tr>
+		</thead>
+		<tbody></tbody>
+	</table>
+
+	<h3>Dodaj novi račun</h3>
+	<form onsubmit="addRacun(event)">
+		<input id="iban" placeholder="IBAN" required /> <input id="tipRacuna"
+			type="number" placeholder="Tip" required /> <input id="valuta"
+			placeholder="Valuta" required /> <input id="klijentId" type="number"
+			placeholder="Klijent ID" required /> <input id="datumOtvaranja"
+			type="date" required /> <input id="datumZatvaranja" type="date" />
+		<button type="submit">Dodaj</button>
+	</form>
+
+	<script>
+    const API = '/api/racuni';
+    
+    function validateIban(iban) {
+    	return /^[A-Z]{2}\d{2,18}$/.test(iban);
+    }
+    
+    function formatDate(input)  {
+    	if (!input) return "";
+    	const dateInput = new Date(input);
+    	return dateInput.toISOString().split("T")[0];
+    }
+
+    function loadData() {
+      const datum = document.getElementById("filterDate").value;
+      fetch(`${API}?datum=${datum}`)
+        .then(res => res.json())
+        .then(data => {
+          const tbody = document.querySelector("#racunTable tbody");
+          tbody.innerHTML = "";
+          data.forEach(r => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${r.racunId}</td>
+              <td><input value="${r.iban}" disabled /></td>
+              <td><input type="number" value="${r.tipRacuna}" disabled /></td>
+              <td><input value="${r.valuta}" disabled /></td>
+              <td><input type="number" value="${r.klijentId}" disabled /></td>
+              <td><input type="date" value="${formatDate(r.datumOtvaranja)}" disabled /></td>
+              <td><input type="date" value="${formatDate(r.datumZatvaranja) || "—"}" disabled /></td>
+              <td>
+                <button onclick="updateRacun(this, ${r.racunId})">Azuriraj</button>
+                <button onclick="deleteRacun(${r.racunId})">Obriši</button>
+              </td>`;
+            tbody.appendChild(row);
+          });
+        });
+    }
+
+    function addRacun(event) {
+      event.preventDefault();
+      
+      const iban = document.getElementById("iban").value.trim();
+      const datumOtvaranja = document.getElementById("datumOtvaranja").value;
+      const datumZatvaranja = document.getElementById("datumZatvaranja").value;
+      
+      if(!validateIban(iban)) {
+    	  alert("Neispravan IBAN!")
+    	  return;
+      }
+      
+      if(datumZatvaranja && datumZatvaranja < datumOtvaranja)  {
+    	  alert("Datum zatvaranja ne moze biti nakon datuma otvaranja!")
+    	  return;
+      }
+      
+      const data = {
+        iban: iban,
+        tipRacuna: +document.getElementById("tipRacuna").value,
+        valuta: document.getElementById("valuta").value,
+        klijentId: +document.getElementById("klijentId").value,
+        datumOtvaranja: document.getElementById("datumOtvaranja").value,
+        datumZatvaranja: document.getElementById("datumZatvaranja").value || null
+      };
+
+      fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      }).then(() => loadData());
+    }
+    
+    function updateRacun(button, id) {
+        const row = button.closest("tr");
+        const inputs = row.querySelectorAll("input");
+        
+        if(button.textContent === "Azuriraj") {
+        	inputs.forEach(input => input.disabled = false);
+        	button.textContent="Spremi";
+        } else {
+        	const iban = inputs[0].value.trim();
+        	const datumOtvaranja = inputs[4].value;
+            const datumZatvaranja = inputs[5].value;
+        	
+        	if(!validateIban(iban)) {
+             	 alert("Neispravan IBAN!")
+             	 return;
+            }
+        	
+        	if(datumZatvaranja && datumZatvaranja < datumOtvaranja)  {
+          	  alert("Datum zatvaranja ne moze biti nakon datuma otvaranja!")
+          	  return;
+            }
+            
+        	
+        	const data = {
+      			iban: iban,
+     	        tipRacuna: +inputs[1].value,
+     	        valuta: inputs[2].value,
+     	        klijentId: +inputs[3].value,
+     	        datumOtvaranja: inputs[4].value,
+     	        datumZatvaranja: inputs[5].value || null
+       	    };
+
+      	    fetch(`${API}/${id}`, {
+     	          method: "PUT",
+     	          headers: { "Content-Type": "application/json" },
+     	          body: JSON.stringify(data)
+     	     }).then(() => loadData());
+        	
+        }
+      }
+
+    function deleteRacun(id) {
+      fetch(`${API}/${id}`, { method: "DELETE" }).then(() => loadData());
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("filterDate").valueAsDate = new Date();
+      loadData();
+    });
+  </script>
+</body>
+</html>
